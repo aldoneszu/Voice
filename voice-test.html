@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>تجربة مكالمة صوتية</title>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Tahoma, sans-serif;
+    background: #0f1117;
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+  }
+  .card {
+    background: #1a1d29;
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 5px;
+    color: #4ea8de;
+  }
+  p.subtitle {
+    color: #999;
+    margin-bottom: 25px;
+    font-size: 14px;
+  }
+  input {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: 1px solid #333;
+    background: #12141c;
+    color: #fff;
+    font-size: 16px;
+    margin-bottom: 15px;
+    text-align: center;
+  }
+  button {
+    width: 100%;
+    padding: 14px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 12px;
+    transition: 0.2s;
+  }
+  #joinBtn {
+    background: #4ea8de;
+    color: #000;
+  }
+  #joinBtn:hover { background: #3d8fc4; }
+  #leaveBtn {
+    background: #e74c3c;
+    color: #fff;
+    display: none;
+  }
+  #muteBtn {
+    background: #2c2f3d;
+    color: #fff;
+    display: none;
+  }
+  #status {
+    margin-top: 15px;
+    font-size: 14px;
+    color: #4ea8de;
+    min-height: 20px;
+  }
+  .users {
+    margin-top: 15px;
+    font-size: 13px;
+    color: #999;
+  }
+  .dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #2ecc71;
+    margin-left: 6px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🎙️ تجربة مكالمة صوتية</h1>
+  <p class="subtitle">اكتب نفس اسم الغرفة انت وصاحبك عشان تدخلوا سوا</p>
+
+  <input type="text" id="channelName" placeholder="اسم الغرفة (مثلاً: room1)" value="room1">
+  
+  <button id="joinBtn" onclick="joinCall()">دخول المكالمة</button>
+  <button id="muteBtn" onclick="toggleMute()">كتم الصوت 🔇</button>
+  <button id="leaveBtn" onclick="leaveCall()">إنهاء المكالمة</button>
+
+  <div id="status">جاهز للاتصال</div>
+  <div class="users" id="usersCount"></div>
+</div>
+
+<script>
+  const APP_ID = "0d60209ff93e4aa196f1ba79151ab296";
+  let client = null;
+  let localAudioTrack = null;
+  let isMuted = false;
+  let remoteCount = 0;
+
+  async function joinCall() {
+    const channel = document.getElementById('channelName').value.trim();
+    if (!channel) {
+      alert('اكتب اسم الغرفة الأول');
+      return;
+    }
+
+    document.getElementById('status').innerText = 'جاري الاتصال...';
+    document.getElementById('joinBtn').disabled = true;
+
+    try {
+      client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+      // استقبال صوت أي حد يدخل الغرفة
+      client.on("user-published", async (user, mediaType) => {
+        await client.subscribe(user, mediaType);
+        if (mediaType === "audio") {
+          user.audioTrack.play();
+          remoteCount++;
+          updateUsersCount();
+        }
+      });
+
+      client.on("user-left", () => {
+        remoteCount = Math.max(0, remoteCount - 1);
+        updateUsersCount();
+      });
+
+      // الدخول بدون Token (Testing Mode)
+      await client.join(APP_ID, channel, null, null);
+
+      localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      await client.publish([localAudioTrack]);
+
+      document.getElementById('status').innerText = '✅ متصل - الغرفة: ' + channel;
+      document.getElementById('joinBtn').style.display = 'none';
+      document.getElementById('leaveBtn').style.display = 'block';
+      document.getElementById('muteBtn').style.display = 'block';
+      document.getElementById('channelName').disabled = true;
+      updateUsersCount();
+
+    } catch (err) {
+      document.getElementById('status').innerText = '❌ خطأ: ' + err.message;
+      document.getElementById('joinBtn').disabled = false;
+      console.error(err);
+    }
+  }
+
+  function toggleMute() {
+    if (!localAudioTrack) return;
+    isMuted = !isMuted;
+    localAudioTrack.setEnabled(!isMuted);
+    document.getElementById('muteBtn').innerText = isMuted ? 'إلغاء الكتم 🔊' : 'كتم الصوت 🔇';
+  }
+
+  async function leaveCall() {
+    if (localAudioTrack) {
+      localAudioTrack.close();
+    }
+    if (client) {
+      await client.leave();
+    }
+    document.getElementById('status').innerText = 'تم إنهاء المكالمة';
+    document.getElementById('joinBtn').style.display = 'block';
+    document.getElementById('joinBtn').disabled = false;
+    document.getElementById('leaveBtn').style.display = 'none';
+    document.getElementById('muteBtn').style.display = 'none';
+    document.getElementById('channelName').disabled = false;
+    document.getElementById('usersCount').innerText = '';
+    remoteCount = 0;
+    isMuted = false;
+    document.getElementById('muteBtn').innerText = 'كتم الصوت 🔇';
+  }
+
+  function updateUsersCount() {
+    const total = remoteCount + 1;
+    document.getElementById('usersCount').innerHTML = 
+      '<span class="dot"></span>' + total + ' شخص متصل في الغرفة';
+  }
+</script>
+
+</body>
+</html>
