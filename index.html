@@ -102,7 +102,7 @@
   <h1>🎙️ تجربة مكالمة صوتية</h1>
   <p class="subtitle">اكتب نفس اسم الغرفة انت وصاحبك عشان تدخلوا سوا</p>
 
-  <input type="text" id="channelName" placeholder="اسم الغرفة (مثلاً: room1)" value="room1">
+  <input type="text" id="channelName" placeholder="اسم الغرفة" value="room1" disabled>
   
   <button id="joinBtn" onclick="joinCall()">دخول المكالمة</button>
   <button id="muteBtn" onclick="toggleMute()">كتم الصوت 🔇</button>
@@ -114,17 +114,16 @@
 
 <script>
   const APP_ID = "0d60209ff93e4aa196f1ba79151ab296";
+  const TEMP_TOKEN = "007eJxTYFj49nHwj91/jx9wqnwUb9v1sKW+p/L8lqitajNZOE+tmj5bgcEgxczAyMAyLc3SONUkMdHQ0izNMCnR3NLQ1DAxycjSzOSdR1ZDICODdc52RkYGCATxWRmK8vNzDRkYAHY5Ikc=";
+  const FIXED_CHANNEL = "room1"; // نفس اسم القناة اللي ولّدت له التوكن بالظبط
   let client = null;
   let localAudioTrack = null;
   let isMuted = false;
   let remoteCount = 0;
 
   async function joinCall() {
-    const channel = document.getElementById('channelName').value.trim();
-    if (!channel) {
-      alert('اكتب اسم الغرفة الأول');
-      return;
-    }
+    const channel = FIXED_CHANNEL; // مهم: التوكن مربوط بالاسم ده بالظبط، غيّره لو غيّرت القناة في Agora
+    document.getElementById('channelName').value = channel;
 
     document.getElementById('status').innerText = 'جاري الاتصال...';
     document.getElementById('joinBtn').disabled = true;
@@ -147,8 +146,8 @@
         updateUsersCount();
       });
 
-      // الدخول بدون Token (Testing Mode)
-      await client.join(APP_ID, channel, null, null);
+      // الدخول باستخدام Temp Token (صالح 24 ساعة فقط)
+      await client.join(APP_ID, channel, TEMP_TOKEN, null);
 
       localAudioTrack = await AgoraRTC.createMicrophoneAudioTrack();
       await client.publish([localAudioTrack]);
